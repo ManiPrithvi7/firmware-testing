@@ -93,7 +93,7 @@ export function Board({
     <div className="hw-log">
       <header className="bench">
         <div className="bench-title">
-          <h1>Hardware Test Log</h1>
+          <h1>Firmware Test Log</h1>
           <div className="sub">
             <input
               type="text"
