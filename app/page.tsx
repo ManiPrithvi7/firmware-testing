@@ -34,7 +34,7 @@ function SetupNotice({ missing, error }: { missing: string[]; error?: string }) 
     <main className="hw-log setup">
       <header className="bench">
         <div className="bench-title">
-          <h1>Hardware Test Log</h1>
+          <h1>Firmware Test Log</h1>
           <div className="sub">{error ? "The bench cannot reach Neon." : "Link this app to Neon."}</div>
         </div>
       </header>
