@@ -1,4 +1,5 @@
 import { neon, type NeonQueryFunction } from "@neondatabase/serverless";
+import { isTag } from "@/lib/constants";
 import { proofViewUrl } from "@/lib/storage";
 
 export type TodoRow = {
@@ -29,6 +30,7 @@ export type IssueRow = {
     priority: string;
     area: string;
     owner: string;
+    tags: string[];
     created_at: string;
     updated_at: string;
     todos: TodoRow[];
@@ -78,6 +80,7 @@ const STATEMENTS = [
     created_at timestamptz NOT NULL DEFAULT now()
   )`,
     `ALTER TABLE issues ADD COLUMN IF NOT EXISTS steps text NOT NULL DEFAULT ''`,
+    `ALTER TABLE issues ADD COLUMN IF NOT EXISTS tags text[]`,
     `CREATE INDEX IF NOT EXISTS issues_status_updated_idx ON issues (status, updated_at DESC)`,
     `CREATE INDEX IF NOT EXISTS todos_issue_position_idx ON todos (issue_id, position)`,
     `CREATE INDEX IF NOT EXISTS proofs_issue_created_idx ON proofs (issue_id, created_at)`,
@@ -106,7 +109,7 @@ export async function listIssues(): Promise<IssueRow[]> {
     await ensureSchema();
     const sql = sqlClient();
     const issues = await sql`
-    SELECT id, title, description, steps, status, priority, area, owner, created_at, updated_at
+    SELECT id, title, description, steps, status, priority, area, owner, tags, created_at, updated_at
     FROM issues
     ORDER BY
       CASE status
@@ -160,6 +163,7 @@ export async function listIssues(): Promise<IssueRow[]> {
                 priority: issue.priority as string,
                 area: issue.area as string,
                 owner: issue.owner as string,
+                tags: readTags(issue.tags),
                 created_at: String(issue.created_at),
                 updated_at: String(issue.updated_at),
                 todos: (todosByIssue.get(id) ?? []).map(mapTodo),
@@ -190,6 +194,16 @@ function groupBy(
         map.set(id, list);
     }
     return map;
+}
+
+function readTags(value: unknown): string[] {
+    if (value == null) return [];
+    const raw = Array.isArray(value)
+        ? value.map(String)
+        : typeof value === "string"
+          ? value.replace(/^\{|\}$/g, "").split(",").map((item) => item.trim()).filter(Boolean)
+          : [];
+    return raw.filter(isTag);
 }
 
 function mapTodo(row: Record<string, unknown>): TodoRow {

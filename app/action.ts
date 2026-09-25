@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import {
     isPriority,
     isStatus,
+    isTag,
     MAX_PROOF_BYTES,
     PROOF_TYPES,
 } from "@/lib/constants";
@@ -28,6 +29,7 @@ export async function createIssue(formData: FormData): Promise<ActionResult> {
     const description = String(formData.get("description") ?? "").trim();
     const steps = String(formData.get("steps") ?? "").trim();
     const priority = String(formData.get("priority") ?? "medium");
+    const tags = [...new Set(formData.getAll("tags").map(String).filter(isTag))];
 
     if (!title) return { ok: false, error: "Give the finding a title." };
     if (title.length > 160) return { ok: false, error: "Title is too long." };
@@ -45,6 +47,12 @@ export async function createIssue(formData: FormData): Promise<ActionResult> {
     `;
         const issueId = String(rows[0]?.id ?? "");
         if (!isUuid(issueId)) throw new Error("Could not create the finding.");
+        if (tags.length > 0) {
+            await sql.query(
+                `UPDATE issues SET tags = $1::text[] WHERE id = $2::uuid`,
+                [tags, issueId],
+            );
+        }
 
         revalidatePath("/");
         return { ok: true, id: issueId };
@@ -53,21 +61,56 @@ export async function createIssue(formData: FormData): Promise<ActionResult> {
     }
 }
 
-export async function updateIssueStatus(
-    issueId: string,
-    status: string,
-): Promise<ActionResult> {
-    if (!isUuid(issueId) || !isStatus(status)) {
-        return { ok: false, error: "That status is not valid." };
+export async function updateIssue(input: {
+    id: string;
+    initial: IssueFields;
+    next: IssueFields;
+}): Promise<ActionResult> {
+    if (!isUuid(input.id)) return { ok: false, error: "Unknown finding." };
+
+    const initial = normalizeFields(input.initial);
+    const next = normalizeFields(input.next);
+    const changes: string[] = [];
+    const values: unknown[] = [];
+
+    function set(column: string, value: unknown) {
+        values.push(value);
+        changes.push(`${column} = $${values.length}`);
     }
+
+    if (initial.title !== next.title) {
+        if (!next.title) return { ok: false, error: "Give the issue a short title." };
+        if (next.title.length > 160) return { ok: false, error: "Title is too long." };
+        set("title", next.title);
+    }
+    if (initial.description !== next.description) set("description", next.description);
+    if (initial.steps !== next.steps) set("steps", next.steps);
+    if (initial.status !== next.status) {
+        if (!isStatus(next.status)) return { ok: false, error: "That status is not valid." };
+        set("status", next.status);
+    }
+    if (initial.priority !== next.priority) {
+        if (!isPriority(next.priority)) return { ok: false, error: "That severity is not valid." };
+        set("priority", next.priority);
+    }
+    if (initial.tags.join("\0") !== next.tags.join("\0")) {
+        if (next.tags.some((tag) => !isTag(tag))) {
+            return { ok: false, error: "Those tags are not valid." };
+        }
+        values.push(next.tags);
+        changes.push(`tags = $${values.length}::text[]`);
+    }
+
+    if (changes.length === 0) return { ok: true };
+
     try {
         await ensureSchema();
         const sql = db();
-        await sql`
-      UPDATE issues
-      SET status = ${status}, updated_at = now()
-      WHERE id = ${issueId}::uuid
-    `;
+        values.push(input.id);
+        await sql.query(
+            `UPDATE issues SET ${changes.join(", ")}, updated_at = now() WHERE id = $${values.length}::uuid`,
+            values,
+        );
         revalidatePath("/");
         return { ok: true };
     } catch (error) {
@@ -75,26 +118,24 @@ export async function updateIssueStatus(
     }
 }
 
-export async function updateIssuePriority(
-    issueId: string,
-    priority: string,
-): Promise<ActionResult> {
-    if (!isUuid(issueId) || !isPriority(priority)) {
-        return { ok: false, error: "That severity is not valid." };
-    }
-    try {
-        await ensureSchema();
-        const sql = db();
-        await sql`
-      UPDATE issues
-      SET priority = ${priority}, updated_at = now()
-      WHERE id = ${issueId}::uuid
-    `;
-        revalidatePath("/");
-        return { ok: true };
-    } catch (error) {
-        return fail(error);
-    }
+type IssueFields = {
+    title: string;
+    description: string;
+    steps: string;
+    status: string;
+    priority: string;
+    tags: string[];
+};
+
+function normalizeFields(fields: IssueFields): IssueFields {
+    return {
+        title: fields.title.trim(),
+        description: fields.description.trim(),
+        steps: fields.steps.trim(),
+        status: fields.status,
+        priority: fields.priority,
+        tags: [...new Set(fields.tags)],
+    };
 }
 
 export async function deleteIssue(issueId: string): Promise<ActionResult> {

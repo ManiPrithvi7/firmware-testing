@@ -22,7 +22,14 @@ export const STATUSES = [
     { value: "done", label: "Done" },
 ] as const;
 
+export const TAGS = [
+    { value: "firmware", label: "Firmware" },
+    { value: "enclosure", label: "Enclosure" },
+    { value: "electrical/ mechanical", label: "Electrical/ Mechanical" },
+] as const;
+
 export type Area = (typeof AREAS)[number]["value"];
+export type Tag = (typeof TAGS)[number]["value"];
 export type Priority = (typeof PRIORITIES)[number]["value"];
 export type Status = (typeof STATUSES)[number]["value"];
 
@@ -44,9 +51,14 @@ export function isVideoType(contentType: string) {
     return contentType.startsWith("video/");
 }
 
+const tagValues = new Set<string>(TAGS.map((item) => item.value));
 const areaValues = new Set<string>(AREAS.map((item) => item.value));
 const priorityValues = new Set<string>(PRIORITIES.map((item) => item.value));
 const statusValues = new Set<string>(STATUSES.map((item) => item.value));
+
+export function isTag(value: string): value is Tag {
+    return tagValues.has(value);
+}
 
 export function isArea(value: string): value is Area {
     return areaValues.has(value);

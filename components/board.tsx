@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   addTodo,
   createIssue,
@@ -8,22 +8,55 @@ import {
   deleteProof,
   prepareProofUpload,
   registerProof,
-  updateIssuePriority,
-  updateIssueStatus,
+  updateIssue,
 } from "@/app/action";
-import { PRIORITIES, PROOF_ACCEPT, STATUSES, isVideoType, labelFor } from "@/lib/constants";
+import { PRIORITIES, PROOF_ACCEPT, STATUSES, TAGS, isVideoType, labelFor } from "@/lib/constants";
 import type { IssueRow } from "@/lib/db";
+
+type IssueDraft = {
+  id: string;
+  title: string;
+  description: string;
+  steps: string;
+  status: string;
+  priority: string;
+  tags: string[];
+};
+
+function draftFrom(issue: IssueRow): IssueDraft {
+  return {
+    id: issue.id,
+    title: issue.title,
+    description: issue.description,
+    steps: issue.steps,
+    status: issue.status,
+    priority: issue.priority,
+    tags: [...issue.tags],
+  };
+}
+
+function sameDraft(saved: IssueDraft, draft: IssueDraft) {
+  return (
+    saved.title.trim() === draft.title.trim() &&
+    saved.description.trim() === draft.description.trim() &&
+    saved.steps.trim() === draft.steps.trim() &&
+    saved.status === draft.status &&
+    saved.priority === draft.priority &&
+    saved.tags.join("\0") === draft.tags.join("\0")
+  );
+}
 
 const DEVICE_KEY = "hwtracker_device";
 const SEVERITY_ORDER = ["critical", "high", "medium", "low"] as const;
 
 export function Board({
-  issues,
+  issues: serverIssues,
   storageReady,
 }: {
   issues: IssueRow[];
   storageReady: boolean;
 }) {
+  const [issues, setIssues] = useState(serverIssues);
   const [deviceName, setDeviceName] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterSeverity, setFilterSeverity] = useState("");
@@ -33,6 +66,28 @@ export function Board({
   const [toast, setToast] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
+  const [draft, setDraft] = useState<IssueDraft | null>(null);
+  const [baseline, setBaseline] = useState<IssueDraft | null>(null);
+  const serverIssuesRef = useRef(serverIssues);
+  serverIssuesRef.current = serverIssues;
+  const detailIdRef = useRef(detailId);
+  detailIdRef.current = detailId;
+  const serverStamp = serverIssues
+    .map((issue) => `${issue.id}:${issue.updated_at}:${issue.title}:${issue.status}:${issue.priority}:${issue.tags.join(",")}:${issue.proofs.length}:${issue.todos.length}`)
+    .join("|");
+
+  useEffect(() => {
+    const incoming = serverIssuesRef.current;
+    const openId = detailIdRef.current;
+    setIssues((current) => {
+      if (!openId) return incoming;
+      const open = current.find((issue) => issue.id === openId);
+      if (!open) return incoming;
+      return incoming.map((issue) =>
+        issue.id === openId ? { ...issue, proofs: open.proofs, todos: open.todos } : issue,
+      );
+    });
+  }, [serverStamp]);
 
   useEffect(() => {
     setDeviceName(localStorage.getItem(DEVICE_KEY) ?? "");
@@ -75,6 +130,26 @@ export function Board({
   }, [issues, filterStatus, filterSeverity, search]);
 
   const selected = issues.find((issue) => issue.id === detailId) ?? null;
+  const editor = selected && draft?.id === selected.id ? draft : selected ? draftFrom(selected) : null;
+  const saved = selected && baseline?.id === selected.id ? baseline : selected ? draftFrom(selected) : null;
+  const dirty = saved && editor ? !sameDraft(saved, editor) : false;
+
+  useEffect(() => {
+    if (!detailId || !selected) {
+      setBaseline(null);
+      setDraft(null);
+      return;
+    }
+    if (baseline?.id === selected.id) return;
+    const next = draftFrom(selected);
+    setBaseline(next);
+    setDraft(next);
+  }, [detailId, selected, baseline?.id]);
+
+  function edit(patch: Partial<IssueDraft>) {
+    if (!selected || !editor) return;
+    setDraft({ ...editor, ...patch, id: selected.id });
+  }
 
   function notify(message: string) {
     setToast(message);
@@ -190,6 +265,13 @@ export function Board({
                 <div className="row-num">#{numberById.get(issue.id)}</div>
                 <div className="row-main">
                   <div className="row-title">{issue.title || "(untitled)"}</div>
+                  {issue.tags.length > 0 ? (
+                    <div className="tag-row">
+                      {issue.tags.map((tag) => (
+                        <span key={tag} className="tag">{labelFor(TAGS, tag)}</span>
+                      ))}
+                    </div>
+                  ) : null}
                   <div className="row-meta">
                     {labelFor(PRIORITIES, issue.priority)} · reported {timeAgo(issue.created_at)}
                   </div>
@@ -244,6 +326,17 @@ export function Board({
               <div className="field">
                 <label htmlFor="f-title">Title</label>
                 <input id="f-title" name="title" type="text" placeholder='Short summary, e.g. "Display flickers on cold boot"' autoFocus />
+              </div>
+              <div className="field">
+                <label>Responsible</label>
+                <div className="tag-row">
+                  {TAGS.map((tag) => (
+                    <label key={tag.value} className="tag">
+                      <input type="checkbox" name="tags" value={tag.value} />
+                      {tag.label}
+                    </label>
+                  ))}
+                </div>
               </div>
               <div className="field">
                 <label htmlFor="f-severity">Severity</label>
@@ -307,8 +400,44 @@ export function Board({
             <button className="close-x" type="button" onClick={() => setDetailId(null)} aria-label="Close">
               ×
             </button>
-            <div className="detail-num">#{numberById.get(selected.id)}</div>
-            <h2>{selected.title || "(untitled)"}</h2>
+            <h2 className="detail-id">#{numberById.get(selected.id)}</h2>
+            {editor ? (
+              <>
+                <div className="field">
+                  <label>Responsible</label>
+                <div className="tag-row">
+                  {TAGS.map((tag) => {
+                    const on = editor.tags.includes(tag.value);
+                    return (
+                      <button
+                        key={tag.value}
+                        type="button"
+                        className="tag"
+                        aria-pressed={on}
+                        onClick={() => {
+                          edit({
+                            tags: on
+                              ? editor.tags.filter((item) => item !== tag.value)
+                              : [...editor.tags, tag.value],
+                          });
+                        }}
+                      >
+                        {tag.label}
+                      </button>
+                    );
+                  })}
+                </div>
+                </div>
+                <div className="field">
+                  <label htmlFor="d-title">Title</label>
+                  <input
+                    id="d-title"
+                    value={editor.title}
+                    onChange={(event) => edit({ title: event.target.value })}
+                  />
+                </div>
+              </>
+            ) : null}
             {selected.proofs.length > 0 ? (
               <div className="detail-imgs">
                 {selected.proofs.map((proof) =>
@@ -344,9 +473,8 @@ export function Board({
                 <label htmlFor="d-status">Status</label>
                 <select
                   id="d-status"
-                  value={selected.status}
-                  disabled={pending}
-                  onChange={(event) => run(() => updateIssueStatus(selected.id, event.target.value))}
+                  value={editor?.status ?? selected.status}
+                  onChange={(event) => edit({ status: event.target.value })}
                 >
                   {STATUSES.map((status) => (
                     <option key={status.value} value={status.value}>
@@ -359,9 +487,8 @@ export function Board({
                 <label htmlFor="d-severity">Severity</label>
                 <select
                   id="d-severity"
-                  value={selected.priority}
-                  disabled={pending}
-                  onChange={(event) => run(() => updateIssuePriority(selected.id, event.target.value))}
+                  value={editor?.priority ?? selected.priority}
+                  onChange={(event) => edit({ priority: event.target.value })}
                 >
                   {SEVERITY_ORDER.map((value) => (
                     <option key={value} value={value}>
@@ -371,17 +498,27 @@ export function Board({
                 </select>
               </div>
             </div>
-            {selected.description ? (
-              <div className="detail-block">
-                <h4>What happened</h4>
-                <p>{selected.description}</p>
-              </div>
-            ) : null}
-            {selected.steps ? (
-              <div className="detail-block">
-                <h4>Steps to reproduce</h4>
-                <p>{selected.steps}</p>
-              </div>
+            {editor ? (
+              <>
+                <div className="field">
+                  <label htmlFor="d-desc">What happened</label>
+                  <textarea
+                    id="d-desc"
+                    rows={3}
+                    value={editor.description}
+                    onChange={(event) => edit({ description: event.target.value })}
+                  />
+                </div>
+                <div className="field">
+                  <label htmlFor="d-steps">Steps to reproduce</label>
+                  <textarea
+                    id="d-steps"
+                    rows={3}
+                    value={editor.steps}
+                    onChange={(event) => edit({ steps: event.target.value })}
+                  />
+                </div>
+              </>
             ) : null}
             <div className="detail-block">
               <h4>Reported</h4>
@@ -466,6 +603,49 @@ export function Board({
               </button>
               <button className="btn secondary" type="button" onClick={() => setDetailId(null)}>
                 Close
+              </button>
+              <button
+                className="btn"
+                type="button"
+                disabled={pending || !dirty || !editor}
+                onClick={() => {
+                  if (!editor || !saved || sameDraft(saved, editor)) return;
+                  run(async () => {
+                    const result = await updateIssue({
+                      id: editor.id,
+                      initial: saved,
+                      next: editor,
+                    });
+                    if (result.ok) {
+                      const next = {
+                        ...editor,
+                        title: editor.title.trim(),
+                        description: editor.description.trim(),
+                        steps: editor.steps.trim(),
+                      };
+                      setDraft(next);
+                      setBaseline(next);
+                      setIssues((current) =>
+                        current.map((issue) =>
+                          issue.id === next.id
+                            ? {
+                                ...issue,
+                                title: next.title,
+                                description: next.description,
+                                steps: next.steps,
+                                status: next.status,
+                                priority: next.priority,
+                                tags: [...next.tags],
+                              }
+                            : issue,
+                        ),
+                      );
+                    }
+                    return result;
+                  }, "Issue updated.");
+                }}
+              >
+                {pending ? "Saving…" : "Update"}
               </button>
             </div>
           </div>
