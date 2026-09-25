@@ -189,7 +189,7 @@ export async function uploadIssueProof(formData: FormData): Promise<ActionResult
     const file = formData.get("proof");
     if (!isUuid(issueId)) return { ok: false, error: "Unknown finding." };
     if (!(file instanceof File) || file.size === 0) {
-        return { ok: false, error: "Choose a proof photo." };
+        return { ok: false, error: "Choose a photo or video." };
     }
 
     try {
@@ -207,23 +207,24 @@ export async function uploadIssueProof(formData: FormData): Promise<ActionResult
 }
 
 async function attachProofToIssue(issueId: string, file: File): Promise<ActionResult> {
-    if (!PROOF_TYPES.has(file.type)) {
-        return { ok: false, error: "Proofs must be JPEG, PNG, WebP, or GIF." };
+    const contentType = normalizeProofType(file);
+    if (!PROOF_TYPES.has(contentType)) {
+        return { ok: false, error: "Proofs must be a photo (JPEG, PNG, WebP, GIF) or a video (MP4, WebM, MOV)." };
     }
     if (file.size > MAX_PROOF_BYTES) {
-        return { ok: false, error: "Proof photos must be 8 MB or smaller." };
+        return { ok: false, error: "Each file must be 80 MB or smaller." };
     }
 
-    const extension = extensionFor(file.type);
+    const extension = extensionFor(contentType);
     const key = `issues/${issueId}/${crypto.randomUUID()}${extension}`;
     const bytes = new Uint8Array(await file.arrayBuffer());
     const sql = db();
 
-    await uploadProof(key, bytes, file.type);
+    await uploadProof(key, bytes, contentType);
     try {
         await sql`
       INSERT INTO proofs (issue_id, object_key, filename, content_type)
-      VALUES (${issueId}::uuid, ${key}, ${file.name.slice(0, 180)}, ${file.type})
+      VALUES (${issueId}::uuid, ${key}, ${file.name.slice(0, 180)}, ${contentType})
     `;
         await sql`UPDATE issues SET updated_at = now() WHERE id = ${issueId}::uuid`;
     } catch (error) {
@@ -251,6 +252,30 @@ export async function deleteProof(proofId: string): Promise<ActionResult> {
     }
 }
 
+function normalizeProofType(file: File) {
+    if (PROOF_TYPES.has(file.type)) return file.type;
+    const ext = file.name.split(".").pop()?.toLowerCase();
+    switch (ext) {
+        case "jpg":
+        case "jpeg":
+            return "image/jpeg";
+        case "png":
+            return "image/png";
+        case "webp":
+            return "image/webp";
+        case "gif":
+            return "image/gif";
+        case "mp4":
+            return "video/mp4";
+        case "webm":
+            return "video/webm";
+        case "mov":
+            return "video/quicktime";
+        default:
+            return file.type;
+    }
+}
+
 function extensionFor(type: string) {
     switch (type) {
         case "image/jpeg":
@@ -261,6 +286,12 @@ function extensionFor(type: string) {
             return ".webp";
         case "image/gif":
             return ".gif";
+        case "video/mp4":
+            return ".mp4";
+        case "video/webm":
+            return ".webm";
+        case "video/quicktime":
+            return ".mov";
         default:
             return "";
     }

@@ -344,7 +344,13 @@
 .hw-log .detail-imgs { display: flex; flex-wrap: wrap; gap: 8px; }
 
 .hw-log .thumbs { margin-top: 6px; }
-.hw-log .detail-imgs { margin: 4px 0 16px; }
+.hw-log .detail-imgs {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  margin: 4px 0 16px;
+}
 
 .hw-log .thumb-wrap { position: relative; }
 
@@ -357,11 +363,35 @@
 
 .hw-log .thumb-wrap img { width: 64px; height: 64px; }
 
-.hw-log .detail-imgs img {
-  width: 96px;
-  height: 96px;
-  cursor: zoom-in;
-  background: transparent;
+.hw-log .proof-frame {
+  position: relative;
+  width: 100%;
+}
+
+.hw-log .proof-frame img,
+.hw-log .proof-frame video {
+  display: block;
+  width: 100%;
+  height: 240px;
+  object-fit: contain;
+  background: #0c0e12;
+  border: 1px solid var(--line);
+  border-radius: 3px;
+}
+
+.hw-log .proof-frame button {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: var(--critical);
+  color: #fff;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
   padding: 0;
 }
 
@@ -437,6 +467,20 @@
 }
 
 .hw-log .lightbox img { max-width: 100%; max-height: 100%; border-radius: 4px; }
+
+.hw-log .file-chip {
+  display: flex;
+  width: 64px;
+  height: 64px;
+  align-items: flex-end;
+  padding: 4px;
+  font-size: 10px;
+  line-height: 1.2;
+  overflow: hidden;
+  border-radius: 3px;
+  border: 1px solid var(--line);
+  background: var(--panel-2);
+}
 
 .hw-log .toast {
   position: fixed;

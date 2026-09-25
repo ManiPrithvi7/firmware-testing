@@ -10,7 +10,7 @@ import {
   updateIssueStatus,
   uploadIssueProof,
 } from "@/app/action";
-import { PRIORITIES, STATUSES, labelFor } from "@/lib/constants";
+import { PRIORITIES, PROOF_ACCEPT, STATUSES, isVideoType, labelFor } from "@/lib/constants";
 import type { IssueRow } from "@/lib/db";
 
 const DEVICE_KEY = "hwtracker_device";
@@ -29,7 +29,6 @@ export function Board({
   const [search, setSearch] = useState("");
   const [openNew, setOpenNew] = useState(false);
   const [detailId, setDetailId] = useState<string | null>(null);
-  const [lightbox, setLightbox] = useState<string | null>(null);
   const [toast, setToast] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [draftFiles, setDraftFiles] = useState<File[]>([]);
@@ -47,7 +46,6 @@ export function Board({
   useEffect(() => {
     function onKey(event: KeyboardEvent) {
       if (event.key !== "Escape") return;
-      setLightbox(null);
       setOpenNew(false);
       setDetailId(null);
     }
@@ -180,36 +178,27 @@ export function Board({
         </div>
       ) : (
         <ul className="log">
-          {visible.map((issue) => {
-            const thumb = issue.proofs.find((proof) => proof.url);
-            return (
-              <li key={issue.id}>
-                <button
-                  className="row"
-                  type="button"
-                  onClick={() => setDetailId(issue.id)}
-                >
-                  <div className="sev-bar" data-sev={issue.priority} />
-                  <div className="row-num">#{numberById.get(issue.id)}</div>
-                  <div className="row-main">
-                    <div className="row-title">
-                      {thumb?.url ? (
-                        // eslint-disable-next-line @next/next/no-img-element
-                        <img className="row-thumb" src={thumb.url} alt="" />
-                      ) : null}
-                      {issue.title || "(untitled)"}
-                    </div>
-                    <div className="row-meta">
-                      {labelFor(PRIORITIES, issue.priority)} · reported {timeAgo(issue.created_at)}
-                    </div>
+          {visible.map((issue) => (
+            <li key={issue.id}>
+              <button
+                className="row"
+                type="button"
+                onClick={() => setDetailId(issue.id)}
+              >
+                <div className="sev-bar" data-sev={issue.priority} />
+                <div className="row-num">#{numberById.get(issue.id)}</div>
+                <div className="row-main">
+                  <div className="row-title">{issue.title || "(untitled)"}</div>
+                  <div className="row-meta">
+                    {labelFor(PRIORITIES, issue.priority)} · reported {timeAgo(issue.created_at)}
                   </div>
-                  <span className="badge" data-status={issue.status}>
-                    {labelFor(STATUSES, issue.status)}
-                  </span>
-                </button>
-              </li>
-            );
-          })}
+                </div>
+                <span className="badge" data-status={issue.status}>
+                  {labelFor(STATUSES, issue.status)}
+                </span>
+              </button>
+            </li>
+          ))}
         </ul>
       )}
 
@@ -270,11 +259,11 @@ export function Board({
               </div>
               {storageReady ? (
                 <div className="field">
-                  <label htmlFor="f-images">Photos</label>
+                  <label htmlFor="f-images">Photos or video</label>
                   <input
                     id="f-images"
                     type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif"
+                    accept={PROOF_ACCEPT}
                     multiple
                     onChange={(event) => {
                       const next = Array.from(event.target.files ?? []);
@@ -318,10 +307,28 @@ export function Board({
               <div className="detail-imgs">
                 {selected.proofs.map((proof) =>
                   proof.url ? (
-                    <button key={proof.id} type="button" onClick={() => setLightbox(proof.url)}>
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img src={proof.url} alt={proof.filename} />
-                    </button>
+                    <div key={proof.id} className="proof-frame">
+                      {isVideoType(proof.content_type) ? (
+                        <video
+                          src={proof.url}
+                          controls
+                          playsInline
+                          preload="metadata"
+                          aria-label={proof.filename}
+                        />
+                      ) : (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={proof.url} alt={proof.filename} />
+                      )}
+                      <button
+                        type="button"
+                        aria-label={`Remove ${proof.filename}`}
+                        disabled={pending}
+                        onClick={() => run(() => deleteProof(proof.id))}
+                      >
+                        ×
+                      </button>
+                    </div>
                   ) : null,
                 )}
               </div>
@@ -414,11 +421,11 @@ export function Board({
             </div>
             {storageReady ? (
               <div className="field">
-                <label htmlFor="d-photos">Add photos</label>
+                <label htmlFor="d-photos">Add photos or video</label>
                 <input
                   id="d-photos"
                   type="file"
-                  accept="image/jpeg,image/png,image/webp,image/gif"
+                  accept={PROOF_ACCEPT}
                   multiple
                   disabled={pending}
                   onChange={(event) => {
@@ -434,31 +441,9 @@ export function Board({
                         if (!result.ok) return result;
                       }
                       return { ok: true };
-                    }, files.length === 1 ? "Photo added." : "Photos added.");
+                    }, files.length === 1 ? "File added." : "Files added.");
                   }}
                 />
-              </div>
-            ) : null}
-            {selected.proofs.length > 0 ? (
-              <div className="thumbs">
-                {selected.proofs.map((proof) => (
-                  <div key={proof.id} className="thumb-wrap">
-                    {proof.url ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img src={proof.url} alt={proof.filename} />
-                    ) : (
-                      <span>{proof.filename}</span>
-                    )}
-                    <button
-                      type="button"
-                      aria-label={`Remove ${proof.filename}`}
-                      disabled={pending}
-                      onClick={() => run(() => deleteProof(proof.id))}
-                    >
-                      ×
-                    </button>
-                  </div>
-                ))}
               </div>
             ) : null}
             <div className="modal-actions">
@@ -484,13 +469,6 @@ export function Board({
         </div>
       ) : null}
 
-      {lightbox ? (
-        <button className="lightbox" type="button" onClick={() => setLightbox(null)} aria-label="Close photo">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={lightbox} alt="" />
-        </button>
-      ) : null}
-
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
@@ -504,10 +482,15 @@ function Thumb({ file, onRemove }: { file: File; onRemove: () => void }) {
     return () => URL.revokeObjectURL(next);
   }, [file]);
   if (!url) return null;
+  const video = file.type.startsWith("video/") || /\.(mp4|webm|mov)$/i.test(file.name);
   return (
     <div className="thumb-wrap">
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={url} alt="" />
+      {video ? (
+        <span className="file-chip">{file.name}</span>
+      ) : (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={url} alt="" />
+      )}
       <button type="button" onClick={onRemove} aria-label="Remove photo">
         ×
       </button>
