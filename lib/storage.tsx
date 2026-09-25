@@ -2,6 +2,8 @@ import {
     DeleteObjectCommand,
     DeleteObjectsCommand,
     GetObjectCommand,
+    HeadObjectCommand,
+    PutBucketCorsCommand,
     PutObjectCommand,
     S3Client,
 } from "@aws-sdk/client-s3";
@@ -25,21 +27,54 @@ function assertStorage() {
     }
 }
 
-export async function uploadProof(
-    key: string,
-    body: Uint8Array,
-    contentType: string,
-) {
+let corsReady: Promise<void> | null = null;
+
+function ensureUploadCors() {
+    if (!corsReady) {
+        corsReady = s3
+            .send(
+                new PutBucketCorsCommand({
+                    Bucket: BUCKET,
+                    CORSConfiguration: {
+                        CORSRules: [
+                            {
+                                AllowedOrigins: ["*"],
+                                AllowedMethods: ["GET", "PUT", "HEAD"],
+                                AllowedHeaders: ["*"],
+                                ExposeHeaders: ["ETag"],
+                                MaxAgeSeconds: 3600,
+                            },
+                        ],
+                    },
+                }),
+            )
+            .then(() => undefined)
+            .catch((error) => {
+                corsReady = null;
+                throw error;
+            });
+    }
+    return corsReady;
+}
+
+export async function proofUploadUrl(key: string, contentType: string) {
     assertStorage();
-    await s3.send(
+    await ensureUploadCors().catch(() => undefined);
+    return getSignedUrl(
+        s3,
         new PutObjectCommand({
             Bucket: BUCKET,
             Key: key,
-            Body: body,
             ContentType: contentType,
-            CacheControl: "public, max-age=31536000, immutable",
         }),
+        { expiresIn: 900 },
     );
+}
+
+export async function proofObjectSize(key: string) {
+    assertStorage();
+    const head = await s3.send(new HeadObjectCommand({ Bucket: BUCKET, Key: key }));
+    return head.ContentLength ?? 0;
 }
 
 export async function proofViewUrl(key: string) {

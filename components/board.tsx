@@ -6,9 +6,10 @@ import {
   createIssue,
   deleteIssue,
   deleteProof,
+  prepareProofUpload,
+  registerProof,
   updateIssuePriority,
   updateIssueStatus,
-  uploadIssueProof,
 } from "@/app/action";
 import { PRIORITIES, PROOF_ACCEPT, STATUSES, isVideoType, labelFor } from "@/lib/constants";
 import type { IssueRow } from "@/lib/db";
@@ -222,16 +223,21 @@ export function Board({
                   notify("Give the issue a short title first.");
                   return;
                 }
-                for (const file of draftFiles) data.append("proof", file);
                 run(async () => {
                   const result = await createIssue(data);
-                  if (result.ok) {
-                    form.reset();
-                    setDraftFiles([]);
-                    setOpenNew(false);
-                    notify("Issue logged.");
+                  if (!result.ok || !result.id) return result;
+                  for (const file of draftFiles) {
+                    const uploaded = await sendProof(result.id, file);
+                    if (!uploaded.ok) {
+                      await deleteIssue(result.id);
+                      return uploaded;
+                    }
                   }
-                  return result;
+                  form.reset();
+                  setDraftFiles([]);
+                  setOpenNew(false);
+                  notify("Issue logged.");
+                  return { ok: true as const };
                 });
               }}
             >
@@ -434,13 +440,10 @@ export function Board({
                     if (files.length === 0) return;
                     run(async () => {
                       for (const file of files) {
-                        const data = new FormData();
-                        data.set("issueId", selected.id);
-                        data.set("proof", file);
-                        const result = await uploadIssueProof(data);
+                        const result = await sendProof(selected.id, file);
                         if (!result.ok) return result;
                       }
-                      return { ok: true };
+                      return { ok: true as const };
                     }, files.length === 1 ? "File added." : "Files added.");
                   }}
                 />
@@ -472,6 +475,20 @@ export function Board({
       {toast ? <div className="toast">{toast}</div> : null}
     </div>
   );
+}
+
+async function sendProof(issueId: string, file: File) {
+  const prepared = await prepareProofUpload(issueId, file.name, file.type, file.size);
+  if (!prepared.ok) return prepared;
+  const uploaded = await fetch(prepared.url, {
+    method: "PUT",
+    headers: { "Content-Type": prepared.contentType },
+    body: file,
+  });
+  if (!uploaded.ok) {
+    return { ok: false as const, error: "The file did not upload. Try a smaller photo or video." };
+  }
+  return registerProof(issueId, prepared.key, file.name, prepared.contentType);
 }
 
 function Thumb({ file, onRemove }: { file: File; onRemove: () => void }) {

@@ -9,11 +9,11 @@ import {
 } from "@/lib/constants";
 import { db, ensureSchema, getProofKeys } from "@/lib/db";
 import { safeError } from "@/lib/errors";
-import { deleteProofObject, deleteProofObjects, uploadProof } from "@/lib/storage";
+import { deleteProofObject, deleteProofObjects, proofObjectSize, proofUploadUrl } from "@/lib/storage";
 
-export type ActionResult = { ok: true } | { ok: false; error: string };
+export type ActionResult = { ok: true; id?: string } | { ok: false; error: string };
 
-function fail(error: unknown): ActionResult {
+function fail(error: unknown): { ok: false; error: string } {
     return { ok: false, error: safeError(error) };
 }
 
@@ -28,9 +28,6 @@ export async function createIssue(formData: FormData): Promise<ActionResult> {
     const description = String(formData.get("description") ?? "").trim();
     const steps = String(formData.get("steps") ?? "").trim();
     const priority = String(formData.get("priority") ?? "medium");
-    const proofs = formData
-        .getAll("proof")
-        .filter((item): item is File => item instanceof File && item.size > 0);
 
     if (!title) return { ok: false, error: "Give the finding a title." };
     if (title.length > 160) return { ok: false, error: "Title is too long." };
@@ -49,18 +46,8 @@ export async function createIssue(formData: FormData): Promise<ActionResult> {
         const issueId = String(rows[0]?.id ?? "");
         if (!isUuid(issueId)) throw new Error("Could not create the finding.");
 
-        for (const proof of proofs) {
-            const attached = await attachProofToIssue(issueId, proof);
-            if (!attached.ok) {
-                const keys = await getProofKeys(issueId);
-                await deleteProofObjects(keys);
-                await sql`DELETE FROM issues WHERE id = ${issueId}::uuid`;
-                return attached;
-            }
-        }
-
         revalidatePath("/");
-        return { ok: true };
+        return { ok: true, id: issueId };
     } catch (error) {
         return fail(error);
     }
@@ -184,12 +171,25 @@ export async function deleteTodo(todoId: string): Promise<ActionResult> {
     }
 }
 
-export async function uploadIssueProof(formData: FormData): Promise<ActionResult> {
-    const issueId = String(formData.get("issueId") ?? "");
-    const file = formData.get("proof");
+export async function prepareProofUpload(
+    issueId: string,
+    filename: string,
+    fileType: string,
+    size: number,
+): Promise<
+    | { ok: true; url: string; key: string; contentType: string }
+    | { ok: false; error: string }
+> {
     if (!isUuid(issueId)) return { ok: false, error: "Unknown finding." };
-    if (!(file instanceof File) || file.size === 0) {
+    const contentType = normalizeProofType(filename, fileType);
+    if (!PROOF_TYPES.has(contentType)) {
+        return { ok: false, error: "Proofs must be a photo (JPEG, PNG, WebP, GIF) or a video (MP4, WebM, MOV)." };
+    }
+    if (!Number.isFinite(size) || size <= 0) {
         return { ok: false, error: "Choose a photo or video." };
+    }
+    if (size > MAX_PROOF_BYTES) {
+        return { ok: false, error: "Each file must be 80 MB or smaller." };
     }
 
     try {
@@ -198,40 +198,45 @@ export async function uploadIssueProof(formData: FormData): Promise<ActionResult
         const existing = await sql`SELECT id FROM issues WHERE id = ${issueId}::uuid`;
         if (existing.length === 0) return { ok: false, error: "That finding is gone." };
 
-        const result = await attachProofToIssue(issueId, file);
-        if (result.ok) revalidatePath("/");
-        return result;
+        const key = `issues/${issueId}/${crypto.randomUUID()}${extensionFor(contentType)}`;
+        const url = await proofUploadUrl(key, contentType);
+        return { ok: true, url, key, contentType };
     } catch (error) {
         return fail(error);
     }
 }
 
-async function attachProofToIssue(issueId: string, file: File): Promise<ActionResult> {
-    const contentType = normalizeProofType(file);
+export async function registerProof(
+    issueId: string,
+    key: string,
+    filename: string,
+    contentType: string,
+): Promise<ActionResult> {
+    if (!isUuid(issueId) || !key.startsWith(`issues/${issueId}/`)) {
+        return { ok: false, error: "That upload is not valid." };
+    }
     if (!PROOF_TYPES.has(contentType)) {
-        return { ok: false, error: "Proofs must be a photo (JPEG, PNG, WebP, GIF) or a video (MP4, WebM, MOV)." };
-    }
-    if (file.size > MAX_PROOF_BYTES) {
-        return { ok: false, error: "Each file must be 80 MB or smaller." };
+        return { ok: false, error: "That file type is not allowed." };
     }
 
-    const extension = extensionFor(contentType);
-    const key = `issues/${issueId}/${crypto.randomUUID()}${extension}`;
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const sql = db();
-
-    await uploadProof(key, bytes, contentType);
     try {
+        const size = await proofObjectSize(key);
+        if (size <= 0 || size > MAX_PROOF_BYTES) {
+            await deleteProofObject(key).catch(() => undefined);
+            return { ok: false, error: "Each file must be 80 MB or smaller." };
+        }
+        const sql = db();
         await sql`
       INSERT INTO proofs (issue_id, object_key, filename, content_type)
-      VALUES (${issueId}::uuid, ${key}, ${file.name.slice(0, 180)}, ${contentType})
+      VALUES (${issueId}::uuid, ${key}, ${filename.slice(0, 180)}, ${contentType})
     `;
         await sql`UPDATE issues SET updated_at = now() WHERE id = ${issueId}::uuid`;
+        revalidatePath("/");
+        return { ok: true };
     } catch (error) {
         await deleteProofObject(key).catch(() => undefined);
-        throw error;
+        return fail(error);
     }
-    return { ok: true };
 }
 
 export async function deleteProof(proofId: string): Promise<ActionResult> {
@@ -252,9 +257,9 @@ export async function deleteProof(proofId: string): Promise<ActionResult> {
     }
 }
 
-function normalizeProofType(file: File) {
-    if (PROOF_TYPES.has(file.type)) return file.type;
-    const ext = file.name.split(".").pop()?.toLowerCase();
+function normalizeProofType(filename: string, fileType: string) {
+    if (PROOF_TYPES.has(fileType)) return fileType;
+    const ext = filename.split(".").pop()?.toLowerCase();
     switch (ext) {
         case "jpg":
         case "jpeg":
@@ -272,7 +277,7 @@ function normalizeProofType(file: File) {
         case "mov":
             return "video/quicktime";
         default:
-            return file.type;
+            return fileType;
     }
 }
 
