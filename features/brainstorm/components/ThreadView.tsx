@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import Link from "next/link";
-import { ArrowLeft, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, MessageSquare, Trash2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
 import { uploadAttachments } from "@/lib/upload";
@@ -14,7 +14,18 @@ import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { CardSkeletonList, Chip, EmptyState, UserAvatar } from "@/components/shared";
-import { useAddComment, useComments, type CommentWithAuthor, type ThreadWithAuthor } from "../hooks";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
+import { useAddComment, useComments, useDeleteThread, type CommentWithAuthor, type ThreadWithAuthor } from "../hooks";
 import { CategoryChip } from "./ThreadList";
 
 const PAGE = 20;
@@ -36,6 +47,9 @@ export function ThreadViewSkeleton() {
 export function ThreadView({ thread }: { thread: ThreadWithAuthor }) {
   const [limit, setLimit] = useState(PAGE);
   const { data, isLoading, isFetching } = useComments(thread.id, limit);
+  const { user } = useAuth();
+  const del = useDeleteThread();
+  const isAuthor = user?.id === thread.author_id;
 
   const tree = useMemo(() => {
     const byParent = new Map<string | null, CommentWithAuthor[]>();
@@ -59,12 +73,40 @@ export function ThreadView({ thread }: { thread: ThreadWithAuthor }) {
           <UserAvatar name={thread.author?.name} url={thread.author?.avatar_url} size={28} />
           <span className="text-sm font-medium text-foreground">{thread.author?.name || "Unknown"}</span>
           <RelativeTime date={thread.created_at} />
-          <span className="ml-auto flex gap-1.5">
+          <span className="ml-auto flex items-center gap-1.5">
             <CategoryChip category={thread.category} />
             {thread.issue_id && (
               <Link href={`/brainstorm?issue=${thread.issue_id}`}>
                 <Chip className="font-mono hover:text-foreground">🔗 Issue</Chip>
               </Link>
+            )}
+            {isAuthor && (
+              <AlertDialog>
+                <AlertDialogTrigger
+                  render={
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" aria-label="Delete thread">
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
+                  }
+                />
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Delete this thread?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This can&apos;t be undone. All replies are deleted with it. Notes that shared this thread keep their content.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction
+                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                      onClick={() => del.mutate(thread.id)}
+                    >
+                      Delete
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
             )}
           </span>
         </div>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient, keepPreviousData } from "@tanstack/react-query";
+import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiError, UUID_RE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -83,6 +84,28 @@ export function useCreateThread() {
             toast.success("Thread created");
         },
         onError: (e: Error) => toast.error("Couldn't create thread", { description: e.message }),
+    });
+}
+
+/** Author-only thread delete (server enforces). Cascades to comments; notes
+ *  that shared the thread keep their content — their badge clears via SET NULL. */
+export function useDeleteThread() {
+    const { user } = useAuth();
+    const qc = useQueryClient();
+    const router = useRouter();
+    return useMutation({
+        mutationFn: async (id: string) => {
+            if (!user) throw new Error("Not signed in");
+            await api(`/api/threads/${id}`, { method: "DELETE" });
+            return id;
+        },
+        onSuccess: (id) => {
+            qc.invalidateQueries({ queryKey: ["threads"] });
+            qc.removeQueries({ queryKey: bsKeys.thread(id) });
+            toast.success("Thread deleted");
+            router.push("/brainstorm");
+        },
+        onError: (e: Error) => toast.error("Couldn't delete thread", { description: e.message }),
     });
 }
 
