@@ -1,5 +1,7 @@
 import { db, ensureSchema } from "@/lib/db";
 import { badRequest, notFound, requireProfileId, unauthorized } from "@/lib/api-auth";
+import { attachmentsForComments } from "@/lib/attachments";
+import { proofViewUrl } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -32,7 +34,19 @@ export async function GET(req: Request, ctx: Ctx) {
         ),
         sql.query(`SELECT count(*)::int AS total FROM comments WHERE thread_id = $1::uuid`, [id]),
     ]);
-    return Response.json({ comments, total: countRows[0]?.total ?? 0 });
+    const byComment = await attachmentsForComments(comments.map((c) => c.id as string));
+    const withAttachments = await Promise.all(
+        comments.map(async (c) => ({
+            ...c,
+            attachments: await Promise.all(
+                (byComment.get(c.id as string) ?? []).map(async (a) => ({
+                    ...a,
+                    url: await proofViewUrl(a.object_key),
+                })),
+            ),
+        })),
+    );
+    return Response.json({ comments: withAttachments, total: countRows[0]?.total ?? 0 });
 }
 
 export async function POST(req: Request, ctx: Ctx) {

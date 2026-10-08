@@ -18,6 +18,7 @@ export type Note = {
     shared_thread_id: string | null;
     created_at: string;
     updated_at: string;
+    attachments?: Attachment[];
 };
 
 export type Thread = {
@@ -28,6 +29,7 @@ export type Thread = {
     author_id: string;
     issue_id: string | null;
     created_at: string;
+    attachments?: Attachment[];
 };
 
 export type Comment = {
@@ -37,6 +39,7 @@ export type Comment = {
     author_id: string;
     body: string;
     created_at: string;
+    attachments?: Attachment[];
 };
 
 /** Row shape returned by GET /api/threads (SQL port of the clone's list_threads RPC). */
@@ -50,6 +53,16 @@ export type ThreadListItem = {
     author_name: string | null;
     author_avatar_url: string | null;
     reply_count: number;
+};
+
+/** File attachment on a note, thread, or comment. url is a short-lived signed GET URL. */
+export type Attachment = {
+    id: string;
+    object_key: string;
+    filename: string;
+    content_type: string;
+    url: string | null;
+    created_at: string;
 };
 
 export const THREAD_CATEGORIES = ["Brainstorm", "Help", "Issue-linked"] as const;

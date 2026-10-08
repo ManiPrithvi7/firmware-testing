@@ -140,6 +140,23 @@ const STATEMENTS = [
     `CREATE TRIGGER comments_parent_check
     BEFORE INSERT ON comments
     FOR EACH ROW EXECUTE FUNCTION assert_parent_in_thread()`,
+    // File attachments for notes/threads/comments (S3-backed, same bucket as proofs).
+    // Exactly one parent per row; note attachments inherit the note's privacy.
+    `CREATE TABLE IF NOT EXISTS attachments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    owner_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    note_id uuid REFERENCES notes(id) ON DELETE CASCADE,
+    thread_id uuid REFERENCES threads(id) ON DELETE CASCADE,
+    comment_id uuid REFERENCES comments(id) ON DELETE CASCADE,
+    object_key text NOT NULL,
+    filename text NOT NULL,
+    content_type text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    CONSTRAINT attachments_one_parent CHECK (num_nonnulls(note_id, thread_id, comment_id) = 1)
+  )`,
+    `CREATE INDEX IF NOT EXISTS attachments_note_idx ON attachments (note_id)`,
+    `CREATE INDEX IF NOT EXISTS attachments_thread_idx ON attachments (thread_id)`,
+    `CREATE INDEX IF NOT EXISTS attachments_comment_idx ON attachments (comment_id)`,
 ];
 
 export function ensureSchema() {

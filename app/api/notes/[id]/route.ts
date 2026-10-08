@@ -1,5 +1,7 @@
 import { db, ensureSchema } from "@/lib/db";
 import { badRequest, notFound, requireProfileId, unauthorized } from "@/lib/api-auth";
+import { attachmentsFor } from "@/lib/attachments";
+import { proofViewUrl } from "@/lib/storage";
 
 export const dynamic = "force-dynamic";
 
@@ -21,7 +23,10 @@ export async function GET(_req: Request, ctx: Ctx) {
         [id, profileId],
     );
     if (rows.length === 0) return notFound();
-    return Response.json(rows[0]);
+    const attachments = await Promise.all(
+        (await attachmentsFor("note", id)).map(async (a) => ({ ...a, url: await proofViewUrl(a.object_key) })),
+    );
+    return Response.json({ ...rows[0], attachments });
 }
 
 export async function PATCH(req: Request, ctx: Ctx) {

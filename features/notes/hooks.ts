@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { api, ApiError, UUID_RE } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { uploadAttachments } from "@/lib/upload";
 import type { Note } from "@/lib/types";
 
 export const notesKeys = {
@@ -92,6 +93,24 @@ export function useDeleteNote() {
         },
         onError: (e: Error) => toast.error("Couldn't delete note", { description: e.message }),
     });
+}
+
+/** Upload/delete attachments on an existing note, refreshing the note query. */
+export function useNoteAttachments(noteId: string) {
+    const { user } = useAuth();
+    const qc = useQueryClient();
+    const refresh = () => qc.invalidateQueries({ queryKey: notesKeys.one(user?.id ?? "anon", noteId) });
+    const upload = useMutation({
+        mutationFn: (files: File[]) => uploadAttachments("note", noteId, files),
+        onSuccess: refresh,
+        onError: (e: Error) => toast.error("Couldn't upload attachment", { description: e.message }),
+    });
+    const remove = useMutation({
+        mutationFn: (id: string) => api(`/api/attachments/${id}`, { method: "DELETE" }),
+        onSuccess: refresh,
+        onError: (e: Error) => toast.error("Couldn't delete attachment", { description: e.message }),
+    });
+    return { upload, remove };
 }
 
 export function useNotesIssueOptions() {

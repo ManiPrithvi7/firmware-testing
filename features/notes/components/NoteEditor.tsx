@@ -18,7 +18,8 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import type { Note } from "@/lib/types";
-import { useDeleteNote, useNotesIssueOptions, useUpdateNote } from "../hooks";
+import { AttachmentPicker, AttachmentStrip, UploadingNote } from "@/components/attachments";
+import { useDeleteNote, useNoteAttachments, useNotesIssueOptions, useUpdateNote } from "../hooks";
 import { ShareToBrainstormDialog } from "./ShareToBrainstormDialog";
 
 type SaveState = "idle" | "saving" | "saved";
@@ -41,6 +42,7 @@ export function NoteEditor({ note }: { note: Note }) {
   const [shareOpen, setShareOpen] = useState(false);
   const update = useUpdateNote();
   const del = useDeleteNote();
+  const attachments = useNoteAttachments(note.id);
   const issues = useNotesIssueOptions();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const first = useRef(true);
@@ -81,8 +83,13 @@ export function NoteEditor({ note }: { note: Note }) {
           ) : save === "saved" ? (
             <><Check className="h-3 w-3" /> Saved</>
           ) : null}
+          <UploadingNote active={attachments.upload.isPending} />
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          <AttachmentPicker
+            disabled={attachments.upload.isPending}
+            onPick={(files) => attachments.upload.mutate(files)}
+          />
           <Select
             value={note.issue_id ?? "none"}
             onValueChange={(v) => update.mutate({ id: note.id, patch: { issue_id: v === "none" ? null : v } })}
@@ -137,6 +144,11 @@ export function NoteEditor({ note }: { note: Note }) {
         </div>
       </div>
       <div className="flex-1 overflow-y-auto px-4 py-6 lg:px-10">
+        <AttachmentStrip
+          attachments={note.attachments}
+          onDelete={(id) => attachments.remove.mutate(id)}
+          deleting={attachments.remove.isPending}
+        />
         <input
           value={title}
           onChange={(e) => setTitle(e.target.value)}

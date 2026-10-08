@@ -51,10 +51,11 @@ export function useAddComment(threadId: string) {
     return useMutation({
         mutationFn: async ({ body, parentId }: { body: string; parentId?: string | null | undefined }) => {
             if (!user) throw new Error("Not signed in");
-            await api(`/api/threads/${threadId}/comments`, {
+            const { id } = await api<{ id: string }>(`/api/threads/${threadId}/comments`, {
                 method: "POST",
                 body: JSON.stringify({ body, parentId: parentId ?? null }),
             });
+            return id;
         },
         onSuccess: () => {
             qc.invalidateQueries({ queryKey: ["comments", threadId] });

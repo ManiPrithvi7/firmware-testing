@@ -29,7 +29,7 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#14181f] text-[#e8eaee]">
+      <body className="min-h-full flex flex-col bg-background text-foreground">
         <Providers>{children}</Providers>
       </body>
     </html>

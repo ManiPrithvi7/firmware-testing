@@ -11,6 +11,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { cn } from "@/lib/utils";
 import { on, type NewThreadPreset } from "@/lib/events";
 import { THREAD_CATEGORIES } from "@/lib/types";
+import { uploadAttachments } from "@/lib/upload";
+import { toast } from "sonner";
+import { AttachmentPicker, PendingFileChips, UploadingNote } from "@/components/attachments";
 import { useBrainstormIssues, useCreateThread } from "../hooks";
 
 /** Mounted once by the shell; opens on the `ftl:new-thread` event. */
@@ -20,6 +23,8 @@ export function NewThreadDialogHost() {
   const [body, setBody] = useState("");
   const [category, setCategory] = useState("Brainstorm");
   const [issueId, setIssueId] = useState("none");
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const issues = useBrainstormIssues();
   const create = useCreateThread();
   const router = useRouter();
@@ -31,21 +36,36 @@ export function NewThreadDialogHost() {
         setBody(preset?.body ?? "");
         setCategory(preset?.category ?? (preset?.issueId ? "Issue-linked" : "Brainstorm"));
         setIssueId(preset?.issueId ? String(preset.issueId) : "none");
+        setFiles([]);
         setOpen(true);
       }),
     [],
   );
 
-  const submit = () =>
-    create.mutate(
-      { title: title.trim(), body: body.trim(), category, issueId: issueId === "none" ? null : issueId },
-      {
-        onSuccess: (id) => {
-          setOpen(false);
-          router.push(`/brainstorm/t/${id}`);
-        },
-      },
-    );
+  // Create the thread first, then upload any staged files to it (same
+  // create-then-attach pattern as issue proofs).
+  const submit = async () => {
+    try {
+      const id = await create.mutateAsync({
+        title: title.trim(),
+        body: body.trim(),
+        category,
+        issueId: issueId === "none" ? null : issueId,
+      });
+      if (files.length > 0) {
+        setUploading(true);
+        await uploadAttachments("thread", id, files).catch((e: Error) =>
+          toast.error("Couldn't upload attachment", { description: e.message }),
+        );
+        setUploading(false);
+      }
+      setFiles([]);
+      setOpen(false);
+      router.push(`/brainstorm/t/${id}`);
+    } catch {
+      // mutation onError already toasts
+    }
+  };
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -92,11 +112,19 @@ export function NewThreadDialogHost() {
             <Label>Body</Label>
             <Textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} placeholder="Add context, ideas, or questions…" />
           </div>
+          <div className="space-y-1.5">
+            <div className="flex items-center gap-2">
+              <AttachmentPicker onPick={(picked) => setFiles((f) => [...f, ...picked])} />
+              <span className="text-xs text-subtle-foreground">Attach photos or videos</span>
+              <UploadingNote active={uploading} />
+            </div>
+            <PendingFileChips files={files} onRemove={(i) => setFiles((f) => f.filter((_, j) => j !== i))} />
+          </div>
         </div>
         <DialogFooter>
           <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
-          <Button onClick={submit} disabled={!title.trim() || !body.trim() || create.isPending}>
-            {create.isPending ? "Posting…" : "Post thread"}
+          <Button onClick={submit} disabled={!title.trim() || !body.trim() || create.isPending || uploading}>
+            {create.isPending ? "Posting…" : uploading ? "Uploading…" : "Post thread"}
           </Button>
         </DialogFooter>
       </DialogContent>

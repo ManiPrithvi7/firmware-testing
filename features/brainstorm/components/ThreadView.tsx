@@ -5,6 +5,10 @@ import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-context";
+import { uploadAttachments } from "@/lib/upload";
+import { toast } from "sonner";
+import { useQueryClient } from "@tanstack/react-query";
+import { AttachmentPicker, AttachmentStrip, PendingFileChips, UploadingNote } from "@/components/attachments";
 import { RelativeTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -66,6 +70,7 @@ export function ThreadView({ thread }: { thread: ThreadWithAuthor }) {
         </div>
         <h1 className="mt-4 text-xl font-semibold">{thread.title}</h1>
         <p className="mt-3 whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">{thread.body}</p>
+        <AttachmentStrip attachments={thread.attachments} />
       </article>
 
       <div className="fixed inset-x-0 bottom-16 z-30 border-t border-border bg-background/95 p-3 backdrop-blur md:static md:mt-6 md:border-0 md:bg-transparent md:p-0">
@@ -132,6 +137,9 @@ function CommentNode({ comment, depth, tree, threadId, mention }: { comment: Com
           {mention && <span className="mr-1 font-medium text-primary">@{mention}</span>}
           {comment.body}
         </p>
+        <div className="pl-[30px]">
+          <AttachmentStrip attachments={comment.attachments} />
+        </div>
         <div className="mt-1 flex items-center gap-3 pl-[30px] text-xs text-subtle-foreground">
           <button className="hover:text-foreground" onClick={() => setReplying((r) => !r)}>Reply</button>
           {replyCount > 0 && (
@@ -185,10 +193,29 @@ function DeepReplies({ id, tree, threadId }: { id: string; tree: Tree; threadId:
 function Composer({ threadId, parentId, placeholder, onDone, autoFocus }: { threadId: string; parentId?: string; placeholder: string; onDone?: () => void; autoFocus?: boolean }) {
   const { displayName, avatarUrl } = useAuth();
   const [body, setBody] = useState("");
+  const [files, setFiles] = useState<File[]>([]);
+  const [uploading, setUploading] = useState(false);
   const add = useAddComment(threadId);
-  const submit = () => {
+  const qc = useQueryClient();
+  // Post the comment first, then upload staged files to it (create-then-attach).
+  const submit = async () => {
     if (!body.trim()) return;
-    add.mutate({ body: body.trim(), parentId }, { onSuccess: () => { setBody(""); onDone?.(); } });
+    try {
+      const commentId = await add.mutateAsync({ body: body.trim(), parentId });
+      if (files.length > 0) {
+        setUploading(true);
+        await uploadAttachments("comment", commentId, files).catch((e: Error) =>
+          toast.error("Couldn't upload attachment", { description: e.message }),
+        );
+        setUploading(false);
+        qc.invalidateQueries({ queryKey: ["comments", threadId] });
+      }
+      setBody("");
+      setFiles([]);
+      onDone?.();
+    } catch {
+      // mutation onError already toasts
+    }
   };
   return (
     <div className="flex items-start gap-2.5">
@@ -205,10 +232,13 @@ function Composer({ threadId, parentId, placeholder, onDone, autoFocus }: { thre
           }}
           className="min-h-0 resize-none bg-card"
         />
-        <div className="mt-2 flex justify-end gap-2">
+        <PendingFileChips files={files} onRemove={(i) => setFiles((f) => f.filter((_, j) => j !== i))} />
+        <div className="mt-2 flex items-center justify-end gap-2">
+          <UploadingNote active={uploading} />
+          <AttachmentPicker onPick={(picked) => setFiles((f) => [...f, ...picked])} />
           {onDone && <Button size="sm" variant="ghost" onClick={onDone}>Cancel</Button>}
-          <Button size="sm" onClick={submit} disabled={!body.trim() || add.isPending}>
-            {add.isPending ? "Posting…" : parentId ? "Reply" : "Comment"}
+          <Button size="sm" onClick={submit} disabled={!body.trim() || add.isPending || uploading}>
+            {add.isPending ? "Posting…" : uploading ? "Uploading…" : parentId ? "Reply" : "Comment"}
           </Button>
         </div>
       </div>

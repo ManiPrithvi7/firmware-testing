@@ -51,6 +51,52 @@ export function isVideoType(contentType: string) {
     return contentType.startsWith("video/");
 }
 
+/** Falls back to the filename extension when the browser's MIME type is missing/odd. */
+export function normalizeProofType(filename: string, fileType: string) {
+    if (PROOF_TYPES.has(fileType)) return fileType;
+    const ext = filename.split(".").pop()?.toLowerCase();
+    switch (ext) {
+        case "jpg":
+        case "jpeg":
+            return "image/jpeg";
+        case "png":
+            return "image/png";
+        case "webp":
+            return "image/webp";
+        case "gif":
+            return "image/gif";
+        case "mp4":
+            return "video/mp4";
+        case "webm":
+            return "video/webm";
+        case "mov":
+            return "video/quicktime";
+        default:
+            return fileType;
+    }
+}
+
+export function extensionFor(type: string) {
+    switch (type) {
+        case "image/jpeg":
+            return ".jpg";
+        case "image/png":
+            return ".png";
+        case "image/webp":
+            return ".webp";
+        case "image/gif":
+            return ".gif";
+        case "video/mp4":
+            return ".mp4";
+        case "video/webm":
+            return ".webm";
+        case "video/quicktime":
+            return ".mov";
+        default:
+            return "";
+    }
+}
+
 const tagValues = new Set<string>(TAGS.map((item) => item.value));
 const areaValues = new Set<string>(AREAS.map((item) => item.value));
 const priorityValues = new Set<string>(PRIORITIES.map((item) => item.value));
