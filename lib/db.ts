@@ -84,6 +84,62 @@ const STATEMENTS = [
     `CREATE INDEX IF NOT EXISTS issues_status_updated_idx ON issues (status, updated_at DESC)`,
     `CREATE INDEX IF NOT EXISTS todos_issue_position_idx ON todos (issue_id, position)`,
     `CREATE INDEX IF NOT EXISTS proofs_issue_created_idx ON proofs (issue_id, created_at)`,
+    // --- Notes + Brainstorm port (from ftl-notes-brainstorm clone schema) ---
+    `CREATE TABLE IF NOT EXISTS profiles (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    email text UNIQUE,
+    name text,
+    avatar_url text,
+    google_sub text UNIQUE,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+    `CREATE TABLE IF NOT EXISTS threads (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    title text NOT NULL,
+    body text NOT NULL,
+    category text NOT NULL CHECK (category IN ('Brainstorm', 'Help', 'Issue-linked')),
+    author_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    issue_id uuid REFERENCES issues(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+    `CREATE TABLE IF NOT EXISTS comments (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    thread_id uuid NOT NULL REFERENCES threads(id) ON DELETE CASCADE,
+    parent_id uuid REFERENCES comments(id) ON DELETE CASCADE,
+    author_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    body text NOT NULL,
+    created_at timestamptz NOT NULL DEFAULT now()
+  )`,
+    `CREATE TABLE IF NOT EXISTS notes (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES profiles(id) ON DELETE CASCADE,
+    title text NOT NULL DEFAULT '',
+    body text NOT NULL DEFAULT '',
+    issue_id uuid REFERENCES issues(id) ON DELETE SET NULL,
+    shared_thread_id uuid REFERENCES threads(id) ON DELETE SET NULL,
+    created_at timestamptz NOT NULL DEFAULT now(),
+    updated_at timestamptz NOT NULL DEFAULT now()
+  )`,
+    `CREATE INDEX IF NOT EXISTS threads_issue_idx ON threads (issue_id)`,
+    `CREATE INDEX IF NOT EXISTS threads_created_idx ON threads (created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS comments_thread_created_idx ON comments (thread_id, created_at)`,
+    `CREATE INDEX IF NOT EXISTS notes_user_updated_idx ON notes (user_id, updated_at DESC)`,
+    // Backstop only — the comments POST handler validates parent_id first and
+    // returns 400; this trigger must never surface as a 500.
+    `CREATE OR REPLACE FUNCTION assert_parent_in_thread()
+    RETURNS trigger LANGUAGE plpgsql AS $fn$
+    BEGIN
+      IF NEW.parent_id IS NOT NULL AND
+         (SELECT thread_id FROM comments WHERE id = NEW.parent_id) IS DISTINCT FROM NEW.thread_id THEN
+        RAISE EXCEPTION 'parent comment belongs to a different thread';
+      END IF;
+      RETURN NEW;
+    END
+    $fn$`,
+    `DROP TRIGGER IF EXISTS comments_parent_check ON comments`,
+    `CREATE TRIGGER comments_parent_check
+    BEFORE INSERT ON comments
+    FOR EACH ROW EXECUTE FUNCTION assert_parent_in_thread()`,
 ];
 
 export function ensureSchema() {
