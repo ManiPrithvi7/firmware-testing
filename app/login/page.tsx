@@ -10,7 +10,6 @@ function LoginCard() {
     const searchParams = useSearchParams();
     const next = searchParams.get("next");
     const target = next && next.startsWith("/") && !next.startsWith("//") ? next : "/issues";
-    const domainRejected = searchParams.get("error") === "domain";
 
     return (
         <div className="w-full max-w-sm rounded-lg border border-border bg-card p-8 text-center">
@@ -19,13 +18,8 @@ function LoginCard() {
             </span>
             <h1 className="mt-4 text-lg font-semibold">Firmware Test Log</h1>
             <p className="mt-1 text-sm text-muted-foreground">
-                Sign in with your company Google account.
+                Sign in with your Google account.
             </p>
-            {domainRejected && (
-                <p className="mt-3 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive">
-                    That account isn&apos;t allowed. Use your company account.
-                </p>
-            )}
             <Button className="mt-6 w-full gap-2" onClick={() => signIn("google", { redirectTo: target })}>
                 <GoogleIcon /> Continue with Google
             </Button>

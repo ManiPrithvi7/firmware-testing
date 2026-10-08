@@ -28,20 +28,11 @@ async function upsertProfile(input: {
     return rows[0] as unknown as ProfileRow;
 }
 
-export function allowedDomain(): string {
-    return process.env.AUTH_ALLOWED_DOMAIN ?? "yourcompany.com";
-}
-
 export const { handlers, auth, signIn, signOut } = NextAuth({
     session: { strategy: "jwt" },
     providers: [Google],
     pages: { signIn: "/login" },
     callbacks: {
-        // Company-domain lock: rejected users bounce back to /login.
-        async signIn({ user }) {
-            const allowed = user.email?.endsWith(`@${allowedDomain()}`) ?? false;
-            return allowed ? true : "/login?error=domain";
-        },
         async jwt({ token, user, account }) {
             if (user?.email) {
                 try {
