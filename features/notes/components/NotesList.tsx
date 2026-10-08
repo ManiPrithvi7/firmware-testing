@@ -1,5 +1,7 @@
+"use client";
+
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { NotebookPen, Plus, Search } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { RelativeTime } from "@/lib/time";
@@ -46,8 +48,7 @@ export function NotesList({ activeId }: { activeId?: string | undefined }) {
           filtered.map((n) => (
             <Link
               key={n.id}
-              to="/notes/$id"
-              params={{ id: n.id }}
+              href={`/notes/${n.id}`}
               className={cn(
                 "block rounded-lg border border-border border-l-2 bg-card px-3.5 py-3 transition-colors hover:bg-secondary/60",
                 n.id === activeId ? "border-l-primary bg-secondary/60" : "border-l-transparent",

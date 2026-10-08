@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
+import Link from "next/link";
+import { on } from "@/lib/events";
 import {
   addTodo,
   createIssue,
@@ -108,6 +110,9 @@ export function Board({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, []);
+
+  // Shell FAB on the Issues section opens the new-issue dialog.
+  useEffect(() => on("ftl:log-issue", () => setOpenNew(true)), []);
 
   const numberById = useMemo(() => {
     const ordered = [...issues].sort(
@@ -255,7 +260,7 @@ export function Board({
       ) : (
         <ul className="log">
           {visible.map((issue) => (
-            <li key={issue.id}>
+            <li key={issue.id} className="row-item">
               <button
                 className="row"
                 type="button"
@@ -280,6 +285,13 @@ export function Board({
                   {labelFor(STATUSES, issue.status)}
                 </span>
               </button>
+              <Link
+                className="row-discuss"
+                href={`/brainstorm?issue=${issue.id}`}
+                title="Discuss in Brainstorm"
+              >
+                Discuss
+              </Link>
             </li>
           ))}
         </ul>

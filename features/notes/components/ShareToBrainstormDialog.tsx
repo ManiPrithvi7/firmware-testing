@@ -1,3 +1,5 @@
+"use client";
+
 import { useEffect, useState } from "react";
 import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -34,7 +36,7 @@ export function ShareToBrainstormDialog({ open, onOpenChange, note }: { open: bo
 
   const submit = () => {
     share.mutate(
-      { note, title: title.trim(), body: body.trim(), category, issueId: linkIssue && issueId ? Number(issueId) : null },
+      { note, title: title.trim(), body: body.trim(), category, issueId: linkIssue && issueId ? issueId : null },
       { onSuccess: () => onOpenChange(false) },
     );
   };
@@ -77,11 +79,11 @@ export function ShareToBrainstormDialog({ open, onOpenChange, note }: { open: bo
               <Switch id="share-link" checked={linkIssue} onCheckedChange={setLinkIssue} />
             </div>
             {linkIssue && (
-              <Select value={issueId} onValueChange={setIssueId}>
+              <Select value={issueId} onValueChange={(v) => setIssueId(v ?? "")}>
                 <SelectTrigger><SelectValue placeholder="Choose an issue" /></SelectTrigger>
                 <SelectContent>
                   {(issues.data ?? []).map((i) => (
-                    <SelectItem key={i.id} value={String(i.id)}>#{i.id} {i.title}</SelectItem>
+                    <SelectItem key={i.id} value={i.id}>{i.title}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>

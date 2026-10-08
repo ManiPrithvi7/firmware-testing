@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { ArrowLeft, Check, Loader2, Share2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -70,7 +72,7 @@ export function NoteEditor({ note }: { note: Note }) {
   return (
     <div className="flex h-full flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-border px-4 py-2.5 lg:px-6">
-        <Link to="/notes" className="mr-1 rounded-md p-1.5 text-muted-foreground hover:bg-secondary lg:hidden" aria-label="Back to notes">
+        <Link href="/notes" className="mr-1 rounded-md p-1.5 text-muted-foreground hover:bg-secondary lg:hidden" aria-label="Back to notes">
           <ArrowLeft className="h-4 w-4" />
         </Link>
         <span className="flex items-center gap-1.5 text-xs text-subtle-foreground">
@@ -82,8 +84,8 @@ export function NoteEditor({ note }: { note: Note }) {
         </span>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <Select
-            value={note.issue_id ? String(note.issue_id) : "none"}
-            onValueChange={(v) => update.mutate({ id: note.id, patch: { issue_id: v === "none" ? null : Number(v) } })}
+            value={note.issue_id ?? "none"}
+            onValueChange={(v) => update.mutate({ id: note.id, patch: { issue_id: v === "none" ? null : v } })}
           >
             <SelectTrigger className="h-8 w-[170px] text-xs">
               <SelectValue placeholder="Link to issue" />
@@ -91,16 +93,15 @@ export function NoteEditor({ note }: { note: Note }) {
             <SelectContent>
               <SelectItem value="none">No linked issue</SelectItem>
               {(issues.data ?? []).map((i) => (
-                <SelectItem key={i.id} value={String(i.id)}>
-                  #{i.id} {i.title}
+                <SelectItem key={i.id} value={i.id}>
+                  {i.title}
                 </SelectItem>
               ))}
             </SelectContent>
           </Select>
           {note.shared_thread_id ? (
             <Link
-              to="/brainstorm/t/$id"
-              params={{ id: note.shared_thread_id }}
+              href={`/brainstorm/t/${note.shared_thread_id}`}
               className="inline-flex h-8 items-center rounded-md border border-primary/40 bg-primary/10 px-2.5 text-xs font-medium text-primary hover:bg-primary/20"
             >
               💡 Shared as thread →
@@ -111,11 +112,13 @@ export function NoteEditor({ note }: { note: Note }) {
             </Button>
           )}
           <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Delete note">
-                <Trash2 className="h-4 w-4" />
-              </Button>
-            </AlertDialogTrigger>
+            <AlertDialogTrigger
+              render={
+                <Button size="icon" variant="ghost" className="h-8 w-8 text-muted-foreground hover:text-destructive" aria-label="Delete note">
+                  <Trash2 className="h-4 w-4" />
+                </Button>
+              }
+            />
             <AlertDialogContent>
               <AlertDialogHeader>
                 <AlertDialogTitle>Delete this note?</AlertDialogTitle>

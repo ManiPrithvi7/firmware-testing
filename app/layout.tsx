@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Space_Grotesk, Inter } from "next/font/google";
 import "./globals.css";
 import "./bench.css";
+import { Providers } from "@/components/providers";
 
 const inter = Inter({
   variable: "--font-sans",
@@ -28,7 +29,9 @@ export default function RootLayout({
       lang="en"
       className={`${inter.variable} ${spaceGrotesk.variable} dark h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col bg-[#14181f] text-[#e8eaee]">{children}</body>
+      <body className="min-h-full flex flex-col bg-[#14181f] text-[#e8eaee]">
+        <Providers>{children}</Providers>
+      </body>
     </html>
   );
 }

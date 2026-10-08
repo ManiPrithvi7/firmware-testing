@@ -36,6 +36,15 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-subtle-foreground: var(--subtle-foreground);
+  --color-sev-critical: var(--sev-critical);
+  --color-sev-high: var(--sev-high);
+  --color-sev-medium: var(--sev-medium);
+  --color-sev-low: var(--sev-low);
+  --color-status-open: var(--status-open);
+  --color-status-progress: var(--status-progress);
+  --color-status-blocked: var(--status-blocked);
+  --color-status-done: var(--status-done);
   --radius-sm: calc(var(--radius) * 0.6);
   --radius-md: calc(var(--radius) * 0.8);
   --radius-lg: var(--radius);
@@ -81,37 +90,52 @@
 }
 
 .dark {
-  --background: oklch(0.145 0 0);
-  --foreground: oklch(0.985 0 0);
-  --card: oklch(0.205 0 0);
-  --card-foreground: oklch(0.985 0 0);
-  --popover: oklch(0.205 0 0);
-  --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
-  --primary-foreground: oklch(0.205 0 0);
-  --secondary: oklch(0.269 0 0);
-  --secondary-foreground: oklch(0.985 0 0);
-  --muted: oklch(0.269 0 0);
-  --muted-foreground: oklch(0.708 0 0);
-  --accent: oklch(0.269 0 0);
-  --accent-foreground: oklch(0.985 0 0);
+  /* Mapped to this app's bench palette (see app/bench.css) */
+  --background: #14181f;
+  --foreground: #e8eaee;
+  --card: #1c222b;
+  --card-foreground: #e8eaee;
+  --popover: #232a34;
+  --popover-foreground: #e8eaee;
+  --primary: #f2a93b;
+  --primary-foreground: #14181f;
+  --secondary: #232a34;
+  --secondary-foreground: #e8eaee;
+  --muted: #232a34;
+  --muted-foreground: #8d96a1;
+  --accent: #232a34;
+  --accent-foreground: #e8eaee;
   --destructive: oklch(0.704 0.191 22.216);
-  --border: oklch(1 0 0 / 10%);
-  --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --border: #262e39;
+  --input: #313a46;
+  --ring: #f2a93b;
   --chart-1: oklch(0.488 0.243 264.376);
   --chart-2: oklch(0.696 0.17 162.48);
   --chart-3: oklch(0.769 0.188 70.08);
   --chart-4: oklch(0.627 0.265 303.9);
   --chart-5: oklch(0.645 0.246 16.439);
-  --sidebar: oklch(0.205 0 0);
-  --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-accent: oklch(0.269 0 0);
-  --sidebar-accent-foreground: oklch(0.985 0 0);
-  --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
+  --sidebar: #1a2029;
+  --sidebar-foreground: #e8eaee;
+  --sidebar-primary: #f2a93b;
+  --sidebar-primary-foreground: #14181f;
+  --sidebar-accent: #232a34;
+  --sidebar-accent-foreground: #e8eaee;
+  --sidebar-border: #262e39;
+  --sidebar-ring: #f2a93b;
+  /* Notes + Brainstorm feature tokens (ported from reference clone) */
+  --subtle-foreground: #6b7480;
+  --sev-critical: oklch(0.637 0.237 25.331);
+  --sev-high: oklch(0.705 0.191 47.604);
+  --sev-medium: oklch(0.795 0.184 86.047);
+  --sev-low: oklch(0.707 0.165 254.624);
+  --status-open: oklch(0.707 0.165 254.624);
+  --status-progress: oklch(0.795 0.184 86.047);
+  --status-blocked: oklch(0.637 0.237 25.331);
+  --status-done: oklch(0.723 0.219 149.579);
+}
+
+:root {
+  --content-max: 1120px;
 }
 
 @layer base {

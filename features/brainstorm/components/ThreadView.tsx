@@ -1,8 +1,10 @@
+"use client";
+
 import { useMemo, useState } from "react";
-import { Link } from "@tanstack/react-router";
+import Link from "next/link";
 import { ArrowLeft, ChevronDown, ChevronRight, MessageSquare } from "lucide-react";
 import { cn } from "@/lib/utils";
-import { useAuth } from "@/lib/auth";
+import { useAuth } from "@/lib/auth-context";
 import { RelativeTime } from "@/lib/time";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
@@ -44,7 +46,7 @@ export function ThreadView({ thread }: { thread: ThreadWithAuthor }) {
 
   return (
     <div className="mx-auto w-full max-w-[var(--content-max)] px-4 py-6 pb-40 md:px-8 md:pb-10">
-      <Link to="/brainstorm" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
+      <Link href="/brainstorm" className="mb-4 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground">
         <ArrowLeft className="h-3.5 w-3.5" /> Brainstorm
       </Link>
 
@@ -56,8 +58,8 @@ export function ThreadView({ thread }: { thread: ThreadWithAuthor }) {
           <span className="ml-auto flex gap-1.5">
             <CategoryChip category={thread.category} />
             {thread.issue_id && (
-              <Link to="/brainstorm" search={{ issue: thread.issue_id }}>
-                <Chip className="font-mono hover:text-foreground">🔗 Issue #{thread.issue_id}</Chip>
+              <Link href={`/brainstorm?issue=${thread.issue_id}`}>
+                <Chip className="font-mono hover:text-foreground">🔗 Issue</Chip>
               </Link>
             )}
           </span>

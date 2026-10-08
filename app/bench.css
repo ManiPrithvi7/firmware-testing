@@ -220,6 +220,32 @@
 
 .hw-log button.row:hover { background: var(--panel); }
 
+.hw-log ul.log li.row-item {
+  display: flex;
+  align-items: stretch;
+}
+
+.hw-log ul.log li.row-item button.row {
+  flex: 1;
+  min-width: 0;
+}
+
+.hw-log .row-discuss {
+  display: flex;
+  align-items: center;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--line-soft);
+  color: var(--text-dim);
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.hw-log .row-discuss:hover {
+  color: var(--accent);
+  background: var(--panel);
+}
+
 .hw-log .sev-bar { align-self: stretch; border-radius: 2px; }
 .hw-log .sev-bar[data-sev="critical"] { background: var(--critical); }
 .hw-log .sev-bar[data-sev="high"] { background: var(--high); }

@@ -1,5 +1,7 @@
+"use client";
+
 import { useEffect, useState } from "react";
-import { useNavigate } from "@tanstack/react-router";
+import { useRouter } from "next/navigation";
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -20,7 +22,7 @@ export function NewThreadDialogHost() {
   const [issueId, setIssueId] = useState("none");
   const issues = useBrainstormIssues();
   const create = useCreateThread();
-  const navigate = useNavigate();
+  const router = useRouter();
 
   useEffect(
     () =>
@@ -36,11 +38,11 @@ export function NewThreadDialogHost() {
 
   const submit = () =>
     create.mutate(
-      { title: title.trim(), body: body.trim(), category, issueId: issueId === "none" ? null : Number(issueId) },
+      { title: title.trim(), body: body.trim(), category, issueId: issueId === "none" ? null : issueId },
       {
         onSuccess: (id) => {
           setOpen(false);
-          navigate({ to: "/brainstorm/t/$id", params: { id } });
+          router.push(`/brainstorm/t/${id}`);
         },
       },
     );
@@ -76,12 +78,12 @@ export function NewThreadDialogHost() {
           </div>
           <div className="space-y-1.5">
             <Label>Link to issue</Label>
-            <Select value={issueId} onValueChange={setIssueId}>
+            <Select value={issueId} onValueChange={(v) => setIssueId(v ?? "none")}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No linked issue</SelectItem>
                 {(issues.data ?? []).map((i) => (
-                  <SelectItem key={i.id} value={String(i.id)}>#{i.id} {i.title}</SelectItem>
+                  <SelectItem key={i.id} value={i.id}>{i.title}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
