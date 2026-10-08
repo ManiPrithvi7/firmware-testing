@@ -88,7 +88,7 @@ export function AttachmentStrip({
                             <img
                                 src={a.url}
                                 alt={a.filename}
-                                className="h-20 w-20 rounded-md border border-border object-cover"
+                                className="h-40 w-40 rounded-md border border-border object-cover"
                                 referrerPolicy="no-referrer"
                             />
                         </a>
@@ -98,9 +98,9 @@ export function AttachmentStrip({
                             target="_blank"
                             rel="noreferrer"
                             title={a.filename}
-                            className="inline-flex h-20 w-20 flex-col items-center justify-center gap-1 rounded-md border border-border bg-secondary/50 p-1 text-[10px] text-muted-foreground hover:text-foreground"
+                            className="inline-flex h-40 w-40 flex-col items-center justify-center gap-1.5 rounded-md border border-border bg-secondary/50 p-2 text-xs text-muted-foreground hover:text-foreground"
                         >
-                            <FileVideo className="h-5 w-5" />
+                            <FileVideo className="h-8 w-8" />
                             <span className="w-full truncate text-center">{a.filename}</span>
                         </a>
                     )}
