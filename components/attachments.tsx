@@ -88,7 +88,7 @@ export function AttachmentStrip({
                             <img
                                 src={a.url}
                                 alt={a.filename}
-                                className="h-40 w-40 rounded-md border border-border object-cover"
+                                className="h-60 w-60 rounded-md border border-border object-cover"
                                 referrerPolicy="no-referrer"
                             />
                         </a>
