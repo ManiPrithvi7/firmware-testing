@@ -24,6 +24,8 @@ import { ShareToBrainstormDialog } from "./ShareToBrainstormDialog";
 
 type SaveState = "idle" | "saving" | "saved";
 
+// Manual save only — no debounced autosave (keeps API/DB usage bounded).
+
 export function NoteEditorSkeleton() {
   return (
     <div className="p-6">
@@ -45,24 +47,36 @@ export function NoteEditor({ note }: { note: Note }) {
   const attachments = useNoteAttachments(note.id);
   const issues = useNotesIssueOptions();
   const bodyRef = useRef<HTMLTextAreaElement>(null);
-  const first = useRef(true);
+  const dirty = title !== note.title || body !== note.body;
 
-  // Debounced autosave (500ms)
-  useEffect(() => {
-    if (first.current) {
-      first.current = false;
-      return;
-    }
+  const saveNow = () => {
+    if (!dirty || update.isPending) return;
     setSave("saving");
-    const t = setTimeout(() => {
-      update.mutate(
-        { id: note.id, patch: { title, body } },
-        { onSuccess: () => setSave("saved"), onError: () => setSave("idle") },
-      );
-    }, 500);
-    return () => clearTimeout(t);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [title, body]);
+    update.mutate(
+      { id: note.id, patch: { title, body } },
+      { onSuccess: () => setSave("saved"), onError: () => setSave("idle") },
+    );
+  };
+
+  // Cmd/Ctrl+S saves; leaving the tab with unsaved changes prompts.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "s") {
+        e.preventDefault();
+        saveNow();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  });
+
+  useEffect(() => {
+    const onLeave = (e: BeforeUnloadEvent) => {
+      if (dirty) e.preventDefault();
+    };
+    window.addEventListener("beforeunload", onLeave);
+    return () => window.removeEventListener("beforeunload", onLeave);
+  }, [dirty]);
 
   useLayoutEffect(() => {
     const el = bodyRef.current;
@@ -80,11 +94,23 @@ export function NoteEditor({ note }: { note: Note }) {
         <span className="flex items-center gap-1.5 text-xs text-subtle-foreground">
           {save === "saving" ? (
             <><Loader2 className="h-3 w-3 animate-spin" /> Saving…</>
+          ) : dirty ? (
+            "Unsaved changes"
           ) : save === "saved" ? (
             <><Check className="h-3 w-3" /> Saved</>
           ) : null}
           <UploadingNote active={attachments.upload.isPending} />
         </span>
+        <Button
+          size="sm"
+          variant="outline"
+          className="h-8 text-xs"
+          onClick={saveNow}
+          disabled={!dirty || update.isPending}
+        >
+          Save
+          <kbd className="ml-1.5 rounded border border-border px-1 font-mono text-[10px]">⌘S</kbd>
+        </Button>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           <AttachmentPicker
             disabled={attachments.upload.isPending}
